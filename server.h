@@ -69,6 +69,7 @@ struct cg_server {
 	bool allow_vt_switch;
 	bool return_app_code;
 	bool terminated;
+	char *socket;
 };
 
 void server_terminate(struct cg_server *server);
