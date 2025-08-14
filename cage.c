@@ -63,6 +63,10 @@
 #include "xwayland.h"
 #endif
 
+// External global variables for wayland backend window size (defined in wlroots)
+extern int wlr_wl_preferred_output_width;
+extern int wlr_wl_preferred_output_height;
+
 void
 server_terminate(struct cg_server *server)
 {
@@ -235,6 +239,8 @@ usage(FILE *file, const char *cage)
 		" -s\t Allow VT switching\n"
 		" -S NAME Use display socket NAME, instead of trying wayland-1, wayland-2, etc\n"
 		" -v\t Show the version number and exit\n"
+		" -W WIDTH Set window width for wayland backend (ignored for other backends)\n"
+		" -H HEIGHT Set window height for wayland backend (ignored for other backends)\n"
 		"\n"
 		" Use -- when you want to pass arguments to APPLICATION\n",
 		cage);
@@ -244,7 +250,7 @@ static bool
 parse_args(struct cg_server *server, int argc, char *argv[])
 {
 	int c;
-	while ((c = getopt(argc, argv, "dDhm:sS:v")) != -1) {
+	while ((c = getopt(argc, argv, "dDhm:sS:vW:H:")) != -1) {
 		switch (c) {
 		case 'd':
 			server->xdg_decoration = true;
@@ -268,6 +274,20 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 		case 'v':
 			fprintf(stdout, "Cage version " CAGE_VERSION "\n");
 			exit(0);
+		case 'W':
+			wlr_wl_preferred_output_width = atoi(optarg);
+			if (wlr_wl_preferred_output_width <= 0) {
+				fprintf(stderr, "Invalid width: %s\n", optarg);
+				return false;
+			}
+			break;
+		case 'H':
+			wlr_wl_preferred_output_height = atoi(optarg);
+			if (wlr_wl_preferred_output_height <= 0) {
+				fprintf(stderr, "Invalid height: %s\n", optarg);
+				return false;
+			}
+			break;
 		default:
 			usage(stderr, argv[0]);
 			return false;
