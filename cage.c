@@ -63,9 +63,12 @@
 #include "xwayland.h"
 #endif
 
-// External global variables for wayland backend window size (defined in wlroots)
+// External global variables for wayland backend (defined in wlroots)
 extern int wlr_wl_preferred_output_width;
 extern int wlr_wl_preferred_output_height;
+extern int wlr_wl_logical_width;
+extern int wlr_wl_logical_height;
+extern double wlr_wl_scale;
 
 void
 server_terminate(struct cg_server *server)
@@ -232,15 +235,18 @@ usage(FILE *file, const char *cage)
 	fprintf(file,
 		"Usage: %s [OPTIONS] [--] APPLICATION\n"
 		"\n"
-		" -d\t Don't draw client side decorations, when possible\n"
-		" -h\t Display this help message\n"
-		" -m extend Extend the display across all connected outputs (default)\n"
-		" -m last Use only the last connected output\n"
-		" -s\t Allow VT switching\n"
-		" -S NAME Use display socket NAME, instead of trying wayland-1, wayland-2, etc\n"
-		" -v\t Show the version number and exit\n"
-		" -W WIDTH Set window width for wayland backend (ignored for other backends)\n"
-		" -H HEIGHT Set window height for wayland backend (ignored for other backends)\n"
+		" -d\t\t Don't draw client side decorations, when possible\n"
+		" --help\t\t Display this help message\n"
+		" -m extend\t Extend the display across all connected outputs (default)\n"
+		" -m last\t Use only the last connected output\n"
+		" -s\t\t Allow VT switching\n"
+		" -S NAME\t Use display socket NAME, instead of trying wayland-1, wayland-2, etc\n"
+		" -v\t\t Show the version number and exit\n"
+		" -W WIDTH\t Set window width for wayland backend (ignored for other backends)\n"
+		" -H HEIGHT\t Set window height for wayland backend (ignored for other backends)\n"
+		" -w WIDTH\t Set logical width (internal resolution)\n"
+		" -h HEIGHT\t Set logical height (internal resolution)\n"
+		" --scale SCALE\t Set scaling factor (e.g., 1.5, 2.0)\n"
 		"\n"
 		" Use -- when you want to pass arguments to APPLICATION\n",
 		cage);
@@ -250,14 +256,26 @@ static bool
 parse_args(struct cg_server *server, int argc, char *argv[])
 {
 	int c;
-	while ((c = getopt(argc, argv, "dDhm:sS:vW:H:")) != -1) {
+
+	static struct option long_options[] = {
+		{"help", no_argument, 0, 1001},
+		{"scale", required_argument, 0, 1000},
+		{0, 0, 0, 0}
+	};
+
+	int option_index = 0;
+	while ((c = getopt_long(argc, argv, "dDm:sS:vW:H:w:h:", long_options, &option_index)) != -1) {
 		switch (c) {
 		case 'd':
 			server->xdg_decoration = true;
 			break;
 		case 'h':
-			usage(stdout, argv[0]);
-			return false;
+			wlr_wl_logical_height = atoi(optarg);
+			if (wlr_wl_logical_height <= 0) {
+				fprintf(stderr, "Invalid logical height: %s\n", optarg);
+				return false;
+			}
+			break;
 		case 'm':
 			if (strcmp(optarg, "last") == 0) {
 				server->output_mode = CAGE_MULTI_OUTPUT_MODE_LAST;
@@ -288,6 +306,23 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 				return false;
 			}
 			break;
+		case 'w':
+			wlr_wl_logical_width = atoi(optarg);
+			if (wlr_wl_logical_width <= 0) {
+				fprintf(stderr, "Invalid logical width: %s\n", optarg);
+				return false;
+			}
+			break;
+		case 1000: // --scale
+			wlr_wl_scale = atof(optarg);
+			if (wlr_wl_scale <= 0.0) {
+				fprintf(stderr, "Invalid scale: %s\n", optarg);
+				return false;
+			}
+			break;
+		case 1001: // --help
+			usage(stdout, argv[0]);
+			return false;
 		default:
 			usage(stderr, argv[0]);
 			return false;
