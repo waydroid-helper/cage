@@ -62,6 +62,9 @@ struct cg_server {
 	struct wlr_pointer_constraints_v1 *pointer_constraints;
 	struct wl_listener pointer_constraint;
 
+	// For requesting constraints from host compositor (when running nested)
+	struct wlr_pointer_constraints_v1 *host_pointer_constraints;
+
 	bool xdg_decoration;
 	bool allow_vt_switch;
 	bool return_app_code;

@@ -18,6 +18,7 @@
 #include <wlr/backend.h>
 #include <wlr/backend/multi.h>
 #include <wlr/backend/session.h>
+#include <wlr/backend/wayland.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_idle_notify_v1.h>
@@ -632,22 +633,31 @@ process_cursor_motion(struct cg_seat *seat, uint32_t time_msec, double *dx, doub
 
 	/* Apply pointer constraints. It has to be done before calling wlr_cursor_move() */
 	if (seat->active_constraint) {
-		double sx_confined, sy_confined;
-		/* wlr_region_confine() checks if the current position is within a confinement region.
-		 * If it is, returns true and takes the next position after a move and ajusts it
-		 * to the confinement region.
-		 * It it's not, it returns false and does nothing.
-		 * seat->confine: confinement region.
-		 * sx/sy:current position.
-		 * sx+dx/sy+dy: next position after a move.
-		 * sx_confined/sy_confined: next position, but confined to the region.
-		 */
-		if (!wlr_region_confine(&seat->confine, sx, sy, sx + *dx, sy + *dy, &sx_confined, &sy_confined)) {
-			return;
-		}
+		if (seat->active_constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+			// For locked pointer, just prevent cursor movement
+			// Don't send relative motion here - wlroots wayland backend already handles this
+			// when it receives relative motion events from the host compositor
+			*dx = 0;
+			*dy = 0;
+		} else if (seat->active_constraint->type == WLR_POINTER_CONSTRAINT_V1_CONFINED) {
+			// For confined pointer, use region confinement
+			double sx_confined, sy_confined;
+			/* wlr_region_confine() checks if the current position is within a confinement region.
+			 * If it is, returns true and takes the next position after a move and ajusts it
+			 * to the confinement region.
+			 * It it's not, it returns false and does nothing.
+			 * seat->confine: confinement region.
+			 * sx/sy:current position.
+			 * sx+dx/sy+dy: next position after a move.
+			 * sx_confined/sy_confined: next position, but confined to the region.
+			 */
+			if (!wlr_region_confine(&seat->confine, sx, sy, sx + *dx, sy + *dy, &sx_confined, &sy_confined)) {
+				return;
+			}
 
-		*dx = sx_confined - sx;
-		*dy = sy_confined - sy;
+			*dx = sx_confined - sx;
+			*dy = sy_confined - sy;
+		}
 	}
 
 	struct cg_drag_icon *drag_icon;
@@ -703,10 +713,12 @@ check_constraint_region(struct cg_seat *seat)
 		}
 	}
 
-	// A locked pointer will result in an empty region, thus disallowing all movement
+	// Set up constraint region based on constraint type
 	if (constraint->type == WLR_POINTER_CONSTRAINT_V1_CONFINED) {
+		// For confined pointer, copy the constraint region
 		pixman_region32_copy(&seat->confine, region);
-	} else {
+	} else if (constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+		// For locked pointer, we don't need a region since movement is completely blocked
 		pixman_region32_clear(&seat->confine);
 	}
 }
@@ -733,6 +745,15 @@ cg_cursor_constrain(struct cg_seat *seat, struct wlr_pointer_constraint_v1 *cons
 
 	wl_list_remove(&seat->constraint_commit.link);
 	if (seat->active_constraint) {
+		// If we're deactivating a locked constraint, unlock the host pointer
+		if (constraint == NULL && seat->active_constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+			struct wlr_output *output = wlr_output_layout_output_at(seat->server->output_layout,
+			                                                        seat->cursor->x, seat->cursor->y);
+			if (output && wlr_backend_is_wl(output->backend)) {
+				wlr_wl_output_unlock_pointer(output);
+				wlr_log(WLR_INFO, "Unlocked pointer on host compositor (deactivation)");
+			}
+		}
 		if (constraint == NULL) {
 			warp_to_constraint_cursor_hint(seat);
 		}
@@ -762,6 +783,24 @@ cg_cursor_constrain(struct cg_seat *seat, struct wlr_pointer_constraint_v1 *cons
 
 	check_constraint_region(seat);
 
+		// For pointer lock, request lock from host compositor (passthrough)
+	if (constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+		// Get the output where the constraint is being applied
+		struct wlr_output *output = wlr_output_layout_output_at(seat->server->output_layout,
+		                                                        seat->cursor->x, seat->cursor->y);
+		if (output && wlr_backend_is_wl(output->backend)) {
+			// Request lock from host compositor via wlroots wayland backend
+			if (wlr_wl_output_lock_pointer(output)) {
+				wlr_log(WLR_INFO, "Requested pointer lock from host compositor");
+			} else {
+				wlr_log(WLR_ERROR, "Failed to request pointer lock from host compositor");
+			}
+		} else {
+			wlr_log(WLR_DEBUG, "Not running on Wayland backend, using local lock implementation");
+		}
+	}
+
+	// For confine or if host lock failed, activate immediately
 	wlr_pointer_constraint_v1_send_activated(constraint);
 
 	seat->constraint_commit.notify = handle_constraint_commit;
@@ -788,6 +827,16 @@ handle_constraint_destroy(struct wl_listener *listener, void *data)
 	wl_list_remove(&cg_constraint->destroy.link);
 
 	if (seat->active_constraint == constraint) {
+		// If this was a locked constraint, unlock the host pointer
+		if (constraint->type == WLR_POINTER_CONSTRAINT_V1_LOCKED) {
+			struct wlr_output *output = wlr_output_layout_output_at(seat->server->output_layout,
+			                                                        seat->cursor->x, seat->cursor->y);
+			if (output && wlr_backend_is_wl(output->backend)) {
+				wlr_wl_output_unlock_pointer(output);
+				wlr_log(WLR_INFO, "Unlocked pointer on host compositor");
+			}
+		}
+
 		warp_to_constraint_cursor_hint(seat);
 
 		if (seat->constraint_commit.link.next != NULL) {
