@@ -69,6 +69,7 @@ extern int wlr_wl_preferred_output_height;
 extern int wlr_wl_logical_width;
 extern int wlr_wl_logical_height;
 extern double wlr_wl_scale;
+extern bool wlr_wl_allow_resize;
 
 void
 server_terminate(struct cg_server *server)
@@ -247,6 +248,7 @@ usage(FILE *file, const char *cage)
 		" -w WIDTH\t Set logical width (internal resolution)\n"
 		" -h HEIGHT\t Set logical height (internal resolution)\n"
 		" --scale SCALE\t Set scaling factor (e.g., 1.5, 2.0)\n"
+		" --allow-resize\t Allow window resizing and sync logical resolution with window size\n"
 		"\n"
 		" Use -- when you want to pass arguments to APPLICATION\n",
 		cage);
@@ -260,6 +262,7 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 	static struct option long_options[] = {
 		{"help", no_argument, 0, 1001},
 		{"scale", required_argument, 0, 1000},
+		{"allow-resize", no_argument, 0, 1002},
 		{0, 0, 0, 0}
 	};
 
@@ -323,6 +326,9 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 		case 1001: // --help
 			usage(stdout, argv[0]);
 			return false;
+		case 1002: // --allow-resize
+			wlr_wl_allow_resize = true;
+			break;
 		default:
 			usage(stderr, argv[0]);
 			return false;
