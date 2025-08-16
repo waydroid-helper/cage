@@ -1,0 +1,114 @@
+# Build directories
+build/
+build-*/
+set/
+
+# Meson build system
+.meson-subproject-wrap-hash.txt
+meson-*/
+
+# Compiled Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Kernel Module Compile Results
+*.mod*
+*.cmd
+.tmp_versions/
+modules.ordermeson setup build --buildtype=release && meson compile
+   -C build
+Module.symvers
+Mkfile.old
+dkms.conf
+
+# Editor and IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.log
+
+# Wayland specific
+wayland-*
+wl-*
+
+# Cage specific - generated files
+cage
+config.h
+
+# Documentation build
+man/
+*.1
+
+# Subproject build artifacts
+subprojects/packagecache/
+subprojects/wlroots/build/
+subprojects/wlroots/set/
+subprojects/wlroots/meson-*/
+subprojects/wlroots/*.so
+subprojects/wlroots/*.so.*
+subprojects/wlroots/*.a
+subprojects/wlroots/*.la
+subprojects/wlroots/*.pc
+
+# Test artifacts
+test-results/
+test-suite.log
+
+# Coverage
+*.gcov
+*.gcda
+*.gcno
+coverage/
+
+# Valgrind
+valgrind-out.txt
+
+# Sanitizer outputs
+*.san
