@@ -71,6 +71,9 @@ extern int wlr_wl_logical_height;
 extern double wlr_wl_scale;
 extern bool wlr_wl_allow_resize;
 
+// External global variable for X11 backend (defined in wlroots)
+extern bool wlr_x11_hide_titlebar;
+
 void
 server_terminate(struct cg_server *server)
 {
@@ -249,6 +252,7 @@ usage(FILE *file, const char *cage)
 		" -h HEIGHT\t Set logical height (internal resolution)\n"
 		" --scale SCALE\t Set scaling factor (e.g., 1.5, 2.0)\n"
 		" --allow-resize\t Allow window resizing and sync logical resolution with window size\n"
+		" --hide-titlebar\t Hide window title bar (X11 backend only)\n"
 		"\n"
 		" Use -- when you want to pass arguments to APPLICATION\n",
 		cage);
@@ -263,6 +267,7 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 		{"help", no_argument, 0, 1001},
 		{"scale", required_argument, 0, 1000},
 		{"allow-resize", no_argument, 0, 1002},
+		{"hide-titlebar", no_argument, 0, 1003},
 		{0, 0, 0, 0}
 	};
 
@@ -328,6 +333,9 @@ parse_args(struct cg_server *server, int argc, char *argv[])
 			return false;
 		case 1002: // --allow-resize
 			wlr_wl_allow_resize = true;
+			break;
+		case 1003: // --hide-titlebar
+			wlr_x11_hide_titlebar = true;
 			break;
 		default:
 			usage(stderr, argv[0]);
