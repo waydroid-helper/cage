@@ -19,6 +19,7 @@
 #include <wlr/backend/multi.h>
 #include <wlr/backend/session.h>
 #include <wlr/backend/wayland.h>
+#include <wlr/backend/x11.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_idle_notify_v1.h>
@@ -752,6 +753,9 @@ cg_cursor_constrain(struct cg_seat *seat, struct wlr_pointer_constraint_v1 *cons
 			if (output && wlr_backend_is_wl(output->backend)) {
 				wlr_wl_output_unlock_pointer(output);
 				wlr_log(WLR_INFO, "Unlocked pointer on host compositor (deactivation)");
+			} else if (output && wlr_backend_is_x11(output->backend)) {
+				wlr_x11_output_unlock_pointer(output);
+				wlr_log(WLR_INFO, "Unlocked pointer on X11 server (deactivation)");
 			}
 		}
 		if (constraint == NULL) {
@@ -795,8 +799,15 @@ cg_cursor_constrain(struct cg_seat *seat, struct wlr_pointer_constraint_v1 *cons
 			} else {
 				wlr_log(WLR_ERROR, "Failed to request pointer lock from host compositor");
 			}
+		} else if (output && wlr_backend_is_x11(output->backend)) {
+			// Request lock from X11 server via wlroots x11 backend
+			if (wlr_x11_output_lock_pointer(output)) {
+				wlr_log(WLR_INFO, "Requested pointer lock from X11 server");
+			} else {
+				wlr_log(WLR_ERROR, "Failed to request pointer lock from X11 server");
+			}
 		} else {
-			wlr_log(WLR_DEBUG, "Not running on Wayland backend, using local lock implementation");
+			wlr_log(WLR_DEBUG, "Not running on Wayland or X11 backend, using local lock implementation");
 		}
 	}
 
@@ -834,6 +845,9 @@ handle_constraint_destroy(struct wl_listener *listener, void *data)
 			if (output && wlr_backend_is_wl(output->backend)) {
 				wlr_wl_output_unlock_pointer(output);
 				wlr_log(WLR_INFO, "Unlocked pointer on host compositor");
+			} else if (output && wlr_backend_is_x11(output->backend)) {
+				wlr_x11_output_unlock_pointer(output);
+				wlr_log(WLR_INFO, "Unlocked pointer on X11 server");
 			}
 		}
 
